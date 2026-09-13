@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lucky Dangle - Mac Emoji Charm Preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif; }
+  body {
+    background: #0b0f19;
+    color: #f1f5f9;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 1rem 2rem;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .title-group h1 { font-size: 1.2rem; font-weight: 600; color: #fff; }
+  .title-group p { font-size: 0.8rem; color: #94a3b8; }
+  
+  .controls { display: flex; gap: 0.5rem; }
+  .btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #f1f5f9;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .btn.active { background: #2563eb; border-color: #3b82f6; }
+
+  #canvas-container { flex: 1; position: relative; width: 100%; height: 100%; }
+  canvas { width: 100%; height: 100%; display: block; }
+
+  .hint {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.6rem 1.2rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    color: #cbd5e1;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-group">
+    <h1>🧿 Mac Emoji Dangling Charm</h1>
+    <p>Tiny, subtle, ultra-lightweight Windows screen charm</p>
+  </div>
+  <div class="controls">
+    <button class="btn active" onclick="setSize(12, this)">Tiny (12px)</button>
+    <button class="btn" onclick="setSize(9, this)">Micro (9px)</button>
+    <button class="btn" onclick="setSize(16, this)">Small (16px)</button>
+  </div>
+</header>
+
+<div id="canvas-container">
+  <canvas id="charmCanvas"></canvas>
+  <div class="hint">✨ Move your mouse near the charm or click & drag to feel the sway!</div>
+</div>
+
+<script>
+const canvas = document.getElementById('charmCanvas');
+const ctx = canvas.getContext('2d');
+
+let width, height;
+function resize() {
+  width = canvas.width = canvas.parentElement.clientWidth;
+  height = canvas.height = canvas.parentElement.clientHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+let angle = 0;
+let angularVelocity = 0;
+let angularAccel = 0;
+const stringLength = 90;
+const gravity = 9.81 * 75;
+const damping = 0.982;
+const timeStep = 0.016;
+let ambientTime = 0;
+
+let charmRadius = 12; // Mac Emoji default tiny
+let isDragging = false;
+let mouseX = 0, mouseY = 0, lastMouseX = 0, lastTime = 0, mouseVx = 0;
+
+function setSize(r, btn) {
+  charmRadius = r;
+  document.querySelectorAll('.controls .btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.clientX - rect.left;
+  mouseY = e.clientY - rect.top;
+
+  const anchorX = width / 2;
+  const bobX = anchorX + stringLength * Math.sin(angle);
+  const bobY = stringLength * Math.cos(angle);
+
+  const dist = Math.hypot(mouseX - bobX, mouseY - bobY);
+  if (dist < 60 && !isDragging) {
+    const pushDir = (mouseX < bobX) ? 1 : -1;
+    angularVelocity += pushDir * (60 - dist) * 0.0006;
+  }
+
+  if (isDragging) {
+    const now = performance.now();
+    const dt = (now - lastTime) / 1000;
+    if (dt > 0.005) {
+      mouseVx = (mouseX - lastMouseX) / dt;
+      lastMouseX = mouseX;
+      lastTime = now;
+    }
+  }
+});
+
+canvas.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  lastMouseX = mouseX;
+  lastTime = performance.now();
+});
+
+window.addEventListener('mouseup', () => {
+  if (isDragging) {
+    isDragging = false;
+    angularVelocity += Math.max(-4, Math.min(4, mouseVx * 0.0015));
+  }
+});
+
+function updatePhysics() {
+  ambientTime += timeStep;
+  const anchorX = width / 2;
+
+  if (isDragging) {
+    const targetAngle = Math.atan2(mouseX - anchorX, Math.max(15, mouseY));
+    angle += (targetAngle - angle) * 0.3;
+    angularVelocity = 0;
+  } else {
+    const naturalAccel = -(gravity / stringLength) * Math.sin(angle);
+    const ambientSway = 0.18 * Math.sin(ambientTime * 1.5);
+    angularAccel = naturalAccel + ambientSway;
+    angularVelocity += angularAccel * timeStep;
+    angularVelocity *= damping;
+    angle += angularVelocity * timeStep;
+  }
+}
+
+function render() {
+  ctx.clearRect(0, 0, width, height);
+
+  const anchorX = width / 2;
+  const anchorY = 0;
+  const bobX = anchorX + stringLength * Math.sin(angle);
+  const bobY = anchorY + stringLength * Math.cos(angle);
+
+  // Pure White Thread
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(anchorX, anchorY);
+  ctx.lineTo(bobX, bobY);
+  ctx.stroke();
+
+  // Mini White Bead
+  const beadX = anchorX + (stringLength - charmRadius - 5) * Math.sin(angle);
+  const beadY = anchorY + (stringLength - charmRadius - 5) * Math.cos(angle);
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(beadX, beadY, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mac Emoji Evil Eye (🧿)
+  ctx.save();
+  ctx.translate(bobX, bobY);
+  ctx.rotate(angle * 0.5);
+
+  const r = charmRadius;
+  // Outer Royal Blue (#1845a7)
+  ctx.fillStyle = '#1845a7';
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+
+  // Pure White Ring
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.73, 0, Math.PI * 2); ctx.fill();
+
+  // Sky Blue Ring (#38b6ff)
+  ctx.fillStyle = '#38b6ff';
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.48, 0, Math.PI * 2); ctx.fill();
+
+  // Dark Pupil (#0f172a)
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.25, 0, Math.PI * 2); ctx.fill();
+
+  // Specular Catchlight
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.beginPath(); ctx.arc(-r * 0.3, -r * 0.35, r * 0.15, 0, Math.PI * 2); ctx.fill();
+
+  ctx.restore();
+}
+
+function loop() {
+  updatePhysics();
+  render();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
